@@ -35,7 +35,6 @@ import re
 import struct
 from decimal import Decimal
 from hashlib import sha256
-from functools import partial
 
 import lib.util as util
 from lib.hash import Base58, hash160, double_sha256, hash_to_str
@@ -462,6 +461,74 @@ class BitcoinGold(EquihashMixin, BitcoinMixin, Coin):
             return double_sha256(header[:68] + header[100:112])
 
 
+class BitcoinQuark(BitcoinMixin, Coin):
+    NAME = "BitcoinQuark"
+    SHORTNAME = "BTQ"
+    RPC_PORT = 8339
+    PEERS = [
+        'electrum.bitcoinquark.org s t',
+    ]
+    
+    LOCKTIME_THRESHOLD = 500000000
+    
+    STATIC_BLOCK_HEADERS = False
+    BTQ_FORK_HEIGHT = 520520
+    BTQ_DESERIALIZER = lib_tx.DeserializerEquihashSegWit
+    BTQ_BASIC_HEADER_SIZE = 140 # Excluding Equihash solution
+    BTC_DESERIALIZER = lib_tx.Deserializer
+    BTC_BASIC_HEADER_SIZE = 80
+    
+
+    @classmethod
+    def electrum_header(cls, header, height):
+    
+        if height >= cls.BTQ_FORK_HEIGHT:
+            version, = struct.unpack('<I', header[:4])
+            timestamp, bits = struct.unpack('<II', header[100:108])
+
+            return {
+                'block_height': height,
+                'version': version,
+                'prev_block_hash': hash_to_str(header[4:36]),
+                'merkle_root': hash_to_str(header[36:68]),
+                'timestamp': timestamp,
+                'bits': bits,
+                'nonce': hash_to_str(header[108:140]),
+            }
+        else:
+            version, = struct.unpack('<I', header[:4])
+            timestamp, bits, nonce = struct.unpack('<III', header[68:80])
+
+            return {
+                'block_height': height,
+                'version': version,
+                'prev_block_hash': hash_to_str(header[4:36]),
+                'merkle_root': hash_to_str(header[36:68]),
+                'timestamp': timestamp,
+                'bits': bits,
+                'nonce': nonce,
+            }
+        
+
+    @classmethod
+    def block_header(cls, block, height):
+        '''Return the block header bytes'''
+        if height >= cls.BTQ_FORK_HEIGHT:
+            deserializer = cls.BTQ_DESERIALIZER(block)
+            return deserializer.read_header(height, cls.BTQ_BASIC_HEADER_SIZE)
+        else:
+            return block[:cls.BTC_BASIC_HEADER_SIZE]
+    
+    @classmethod
+    def header_hash(cls, header):
+        '''Given a header return hash'''
+        heightOrTime, = struct.unpack('<I', header[68:72])
+        if heightOrTime >= cls.LOCKTIME_THRESHOLD:
+            return double_sha256(header)
+        else:
+            return double_sha256(header)
+
+
 class Emercoin(Coin):
     NAME = "Emercoin"
     SHORTNAME = "EMC"
@@ -542,6 +609,15 @@ class BitcoinGoldTestnet(BitcoinTestnetMixin, BitcoinGold):
     FORK_HEIGHT = 1210320
 
 
+class BitcoinQuarkTestnet(BitcoinTestnetMixin, BitcoinQuark):
+    NAME = "BitcoinQuark"
+    RPC_PORT = 18339
+    PEER_DEFAULT_PORTS = {'t': '51001', 's': '51002'}
+    PEERS = [
+        'electrum.bitcoinquark.org s t',
+    ]
+    BTQ_FORK_HEIGHT = 1259790
+
 class BitcoinSegwitRegtest(BitcoinSegwitTestnet):
     NAME = "BitcoinSegwit"
     NET = "regtest"
@@ -570,8 +646,8 @@ class Litecoin(Coin):
     NAME = "Litecoin"
     SHORTNAME = "LTC"
     NET = "mainnet"
-    XPUB_VERBYTES = bytes.fromhex("0488b21e")
-    XPRV_VERBYTES = bytes.fromhex("0488ade4")
+    XPUB_VERBYTES = bytes.fromhex("019d9cfe")
+    XPRV_VERBYTES = bytes.fromhex("019da462")
     P2PKH_VERBYTE = bytes.fromhex("30")
     P2SH_VERBYTES = [bytes.fromhex("32"), bytes.fromhex("05")]
     WIF_BYTE = bytes.fromhex("b0")
@@ -597,8 +673,8 @@ class Litecoin(Coin):
 class LitecoinTestnet(Litecoin):
     SHORTNAME = "XLT"
     NET = "testnet"
-    XPUB_VERBYTES = bytes.fromhex("043587cf")
-    XPRV_VERBYTES = bytes.fromhex("04358394")
+    XPUB_VERBYTES = bytes.fromhex("0436ef7d")
+    XPRV_VERBYTES = bytes.fromhex("0436f6e1")
     P2PKH_VERBYTE = bytes.fromhex("6f")
     P2SH_VERBYTES = [bytes.fromhex("3a"), bytes.fromhex("c4")]
     WIF_BYTE = bytes.fromhex("ef")
@@ -1029,6 +1105,7 @@ class Bitbay(ScryptMixin, Coin):
     WIF_BYTE = bytes.fromhex("99")
     GENESIS_HASH = ('0000075685d3be1f253ce777174b1594'
                     '354e79954d2a32a6f77fe9cba00e6467')
+    DAEMON = daemon.LegacyRPCDaemon
     TX_COUNT = 4594999
     TX_COUNT_HEIGHT = 1667070
     TX_PER_BLOCK = 3
@@ -1420,54 +1497,3 @@ class BitcoinAtom(Coin):
         '''Return the block header bytes'''
         deserializer = cls.DESERIALIZER(block)
         return deserializer.read_header(height, cls.BASIC_HEADER_SIZE)
-
-
-class Decred(Coin):
-    NAME = "Decred"
-    SHORTNAME = "DCR"
-    NET = "mainnet"
-    XPUB_VERBYTES = bytes('dpub', 'utf-8')
-    XPRV_VERBYTES = bytes('dprv', 'utf-8')
-    P2PKH_VERBYTE = bytes('Ds', 'utf-8')
-    P2SH_VERBYTES = [bytes('Dc', 'utf-8')]
-    WIF_BYTE = bytes('Pm', 'utf-8')
-    GENESIS_HASH = ('298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980')
-    DESERIALIZER = lib_tx.DeserializerDecred
-    ENCODE_CHECK = partial(Base58.encode_check, hash_fn=lib_tx.DeserializerDecred.blake256)
-    DECODE_CHECK = partial(Base58.decode_check, hash_fn=lib_tx.DeserializerDecred.blake256)
-    HEADER_HASH = lib_tx.DeserializerDecred.blake256
-    BASIC_HEADER_SIZE = 180
-    ALLOW_ADVANCING_ERRORS = True
-    TX_COUNT = 217380620
-    TX_COUNT_HEIGHT = 218875
-    TX_PER_BLOCK = 1000
-    RPC_PORT = 9109
-
-    @classmethod
-    def header_hash(cls, header):
-        '''Given a header return the hash.'''
-        return cls.HEADER_HASH(header)
-
-    @classmethod
-    def block(cls, raw_block, height):
-        '''Return a Block namedtuple given a raw block and its height.'''
-        if height > 0:
-            return super().block(raw_block, height)
-        else:
-            return Block(raw_block, cls.block_header(raw_block, height), [])        
-
-
-class DecredTestnet(Decred):
-    NAME = "Decred"
-    NET = "testnet"
-    XPUB_VERBYTES = bytes('tpub', 'utf-8')
-    XPRV_VERBYTES = bytes('tprv', 'utf-8')
-    P2PKH_VERBYTE = bytes('Ts', 'utf-8')
-    P2SH_VERBYTES = [bytes('Tc', 'utf-8')]
-    WIF_BYTE = bytes('Pt', 'utf-8')
-    GENESIS_HASH = ('4261602a9d07d80ad47621a64ba6a07754902e496777edc4ff581946bd7bc29c')
-    TX_COUNT = 3176305
-    TX_COUNT_HEIGHT = 254198
-    TX_PER_BLOCK = 1000
-    RPC_PORT = 19109
-    

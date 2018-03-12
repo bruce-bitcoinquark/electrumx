@@ -107,9 +107,15 @@ class Prefetcher(LoggedClass):
                 blocks = await daemon.raw_blocks(hex_hashes)
 
                 assert count == len(blocks)
+				
+
+                self.logger.info('---------------------')
+                self.logger.info(count)
+                self.logger.info(hex_hashes[0])
 
                 # Special handling for genesis block
                 if first == 0:
+                    self.logger.info(hex_hashes[0])
                     blocks[0] = self.bp.coin.genesis_block(blocks[0])
                     self.logger.info('verified genesis block with hash {}'
                                      .format(hex_hashes[0]))
