@@ -297,6 +297,12 @@ class DeserializerEquihash(Deserializer):
 class DeserializerEquihashSegWit(DeserializerSegWit, DeserializerEquihash):
     pass
 
+class DeserializerBitcoinQuark(DeserializerSegWit, DeserializerEquihash):
+    def read_header(self, height, static_header_size, fork_height):
+        if height >= fork_height:
+            return DeserializerEquihash.read_header(self, height, static_header_size)
+        else:
+            return DeserializerSegWit._read_nbytes(self, static_header_size)
 
 class TxJoinSplit(namedtuple("Tx", "version inputs outputs locktime")):
     '''Class representing a JoinSplit transaction.'''

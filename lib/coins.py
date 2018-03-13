@@ -473,11 +473,9 @@ class BitcoinQuark(BitcoinMixin, Coin):
     
     STATIC_BLOCK_HEADERS = False
     BTQ_FORK_HEIGHT = 520520
-    BTQ_DESERIALIZER = lib_tx.DeserializerEquihashSegWit
     BTQ_BASIC_HEADER_SIZE = 140 # Excluding Equihash solution
-    BTC_DESERIALIZER = lib_tx.Deserializer
     BTC_BASIC_HEADER_SIZE = 80
-    
+    DESERIALIZER = lib_tx.DeserializerBitcoinQuark
 
     @classmethod
     def electrum_header(cls, header, height):
@@ -513,11 +511,11 @@ class BitcoinQuark(BitcoinMixin, Coin):
     @classmethod
     def block_header(cls, block, height):
         '''Return the block header bytes'''
+        deserializer = cls.DESERIALIZER(block)
         if height >= cls.BTQ_FORK_HEIGHT:
-            deserializer = cls.BTQ_DESERIALIZER(block)
-            return deserializer.read_header(height, cls.BTQ_BASIC_HEADER_SIZE)
+            return deserializer.read_header(height, cls.BTQ_BASIC_HEADER_SIZE, cls.BTQ_FORK_HEIGHT)
         else:
-            return block[:cls.BTC_BASIC_HEADER_SIZE]
+            return deserializer.read_header(height, cls.BTC_BASIC_HEADER_SIZE, cls.BTQ_FORK_HEIGHT)
     
     @classmethod
     def header_hash(cls, header):
@@ -611,6 +609,7 @@ class BitcoinGoldTestnet(BitcoinTestnetMixin, BitcoinGold):
 
 class BitcoinQuarkTestnet(BitcoinTestnetMixin, BitcoinQuark):
     NAME = "BitcoinQuark"
+    DESERIALIZER = lib_tx.DeserializerBitcoinQuark
     RPC_PORT = 18339
     PEER_DEFAULT_PORTS = {'t': '51001', 's': '51002'}
     PEERS = [
