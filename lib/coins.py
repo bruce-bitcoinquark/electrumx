@@ -35,6 +35,7 @@ import re
 import struct
 from decimal import Decimal
 from hashlib import sha256
+import base64
 
 import lib.util as util
 from lib.hash import Base58, hash160, double_sha256, hash_to_str
@@ -465,6 +466,7 @@ class BitcoinQuark(BitcoinMixin, Coin):
     NAME = "BitcoinQuark"
     SHORTNAME = "BTQ"
     RPC_PORT = 8339
+    PEER_DEFAULT_PORTS = {'t': '52001', 's': '52002'}
     PEERS = [
         'electrum.bitcoinquark.org s t',
     ]
@@ -482,16 +484,17 @@ class BitcoinQuark(BitcoinMixin, Coin):
     
         if height >= cls.BTQ_FORK_HEIGHT:
             version, = struct.unpack('<I', header[:4])
-            timestamp, bits = struct.unpack('<II', header[100:108])
-
+            
             return {
-                'block_height': height,
+                'block_height': height,#[68:72]
                 'version': version,
                 'prev_block_hash': hash_to_str(header[4:36]),
                 'merkle_root': hash_to_str(header[36:68]),
-                'timestamp': timestamp,
-                'bits': bits,
+                'reserved': hash_to_str(header[72:100]),
+                'timestamp': struct.unpack('<I', header[100:104])[0],
+                'bits': struct.unpack('<I', header[104:108])[0],
                 'nonce': hash_to_str(header[108:140]),
+                'solution': hash_to_str(header[140:]), 
             }
         else:
             version, = struct.unpack('<I', header[:4])
@@ -611,9 +614,9 @@ class BitcoinQuarkTestnet(BitcoinTestnetMixin, BitcoinQuark):
     NAME = "BitcoinQuark"
     DESERIALIZER = lib_tx.DeserializerBitcoinQuark
     RPC_PORT = 18339
-    PEER_DEFAULT_PORTS = {'t': '51001', 's': '51002'}
+    PEER_DEFAULT_PORTS = {'t': '53001', 's': '53002'}
     PEERS = [
-        'electrum.bitcoinquark.org s t',
+        'testnet-electrum.bitcoinquark.org s t',
     ]
     BTQ_FORK_HEIGHT = 1259790
 
