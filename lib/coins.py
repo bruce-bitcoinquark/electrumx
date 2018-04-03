@@ -470,7 +470,9 @@ class BitcoinQuark(BitcoinMixin, Coin):
     PEERS = [
         'electrum.bitcoinquark.org s t',
     ]
-    
+    TX_COUNT = 217380620
+    TX_COUNT_HEIGHT = 464000
+    TX_PER_BLOCK = 1800
     LOCKTIME_THRESHOLD = 500000000
     
     STATIC_BLOCK_HEADERS = False
